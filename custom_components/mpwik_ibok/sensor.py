@@ -33,6 +33,7 @@ async def async_setup_entry(
         InvoiceGrossAmountSensor(hass, entry),
         MeterStateSensor(hass, entry),
         MeterReadoutDateSensor(hass, entry),
+        MeterConsumptionSensor(hass, entry),
     ]
     
     async_add_entities(entities)
@@ -49,8 +50,11 @@ class IBOKSensorBase(SensorEntity):
         self._attr_update_interval = UPDATE_INTERVAL
         self._last_update = None
         self._data = {
-            "balance": 0,
+            "balance": None,
             "last_invoice": None,
+            "meter_state": None,
+            "readout_date": None,
+            "consumption": None,
         }
     
     @property
@@ -69,6 +73,14 @@ class IBOKSensorBase(SensorEntity):
             self._last_update = datetime.now()
         except Exception as err:
             _LOGGER.error("Error updating MPWIK iBOK data: %s", err)
+            # Set all data to None on error to trigger unavailable state
+            self._data = {
+                "balance": None,
+                "last_invoice": None,
+                "meter_state": None,
+                "readout_date": None,
+                "consumption": None,
+            }
     
     async def _fetch_data(self) -> dict:
         """Fetch data from MPWIK iBOK API."""
@@ -136,22 +148,26 @@ class IBOKSensorBase(SensorEntity):
                             "vat": float(inv.get("vat", 0))
                         }
             
-            # Fetch meter readout
+            # Fetch meter readout list
             meter_state = None
             readout_date = None
+            consumption = None
             async with session.get(
-                f"{server_url}/api/?method=readout",
+                f"{server_url}/api/?method=readoutlist",
                 headers=headers,
                 ssl=False,
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as resp:
                 if resp.status == 200:
-                    readout_response = await resp.json()
-                    readouts = readout_response.get("lastreadout", [])
-                    if readouts and len(readouts) > 0:
-                        readout = readouts[0]
-                        meter_state = readout.get("couterdigits", "N/A")
-                        readout_date = readout.get("date", "N/A")
+                    meter_points = await resp.json()
+                    if isinstance(meter_points, list) and len(meter_points) > 0:
+                        meter_point = meter_points[0]
+                        readouts = meter_point.get("readouts", [])
+                        if readouts and len(readouts) > 0:
+                            last_readout = readouts[0]
+                            meter_state = last_readout.get("readoutvalue", None)
+                            readout_date = last_readout.get("readoutdate", None)
+                            consumption = last_readout.get("consumption", None)
             
             # Logout
             try:
@@ -166,10 +182,11 @@ class IBOKSensorBase(SensorEntity):
                 pass  # Ignore logout errors
             
             return {
-                "balance": float(balance),
+                "balance": float(balance) if balance else None,
                 "last_invoice": last_invoice,
                 "meter_state": meter_state,
                 "readout_date": readout_date,
+                "consumption": consumption,
             }
 
 
@@ -189,7 +206,10 @@ class BalanceSensor(IBOKSensorBase):
     @property
     def native_value(self) -> StateType:
         """Return the native value of the sensor."""
-        return self._data.get("balance", 0)
+        balance = self._data.get("balance")
+        if balance is None:
+            return None
+        return balance
 
 
 class InvoiceNumberSensor(IBOKSensorBase):
@@ -251,10 +271,11 @@ class InvoiceAmountOwedSensor(IBOKSensorBase):
         invoice = self._data.get("last_invoice")
         if invoice:
             try:
-                return float(invoice.get("amount_owed", 0))
+                value = invoice.get("amount_owed")
+                return float(value) if value is not None else None
             except (ValueError, TypeError):
-                return 0
-        return 0
+                return None
+        return None
 
 
 class InvoiceGrossAmountSensor(IBOKSensorBase):
@@ -276,10 +297,11 @@ class InvoiceGrossAmountSensor(IBOKSensorBase):
         invoice = self._data.get("last_invoice")
         if invoice:
             try:
-                return float(invoice.get("gross_amount", 0))
+                value = invoice.get("gross_amount")
+                return float(value) if value is not None else None
             except (ValueError, TypeError):
-                return 0
-        return 0
+                return None
+        return None
 
 
 class MeterStateSensor(IBOKSensorBase):
@@ -325,3 +347,28 @@ class MeterReadoutDateSensor(IBOKSensorBase):
         if readout_date:
             return readout_date
         return "N/A"
+
+
+class MeterConsumptionSensor(IBOKSensorBase):
+    """Sensor for meter consumption since last reading."""
+    
+    _attr_name = "MPWIK iBOK Meter Consumption"
+    _attr_native_unit_of_measurement = UNIT_CUBIC_METERS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:water"
+    
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
+        """Initialize the sensor."""
+        super().__init__(hass, entry)
+        self._attr_unique_id = f"{DOMAIN}_{entry.entry_id}_meter_consumption"
+    
+    @property
+    def native_value(self) -> StateType:
+        """Return the native value of the sensor."""
+        consumption = self._data.get("consumption")
+        if consumption and consumption != "N/A":
+            try:
+                return float(consumption)
+            except (ValueError, TypeError):
+                return None
+        return None

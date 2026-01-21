@@ -49,13 +49,9 @@ class IBOKSensorBase(SensorEntity):
         self._attr_should_poll = True
         self._attr_update_interval = UPDATE_INTERVAL
         self._last_update = None
-        self._data = {
-            "balance": None,
-            "last_invoice": None,
-            "meter_state": None,
-            "readout_date": None,
-            "consumption": None,
-        }
+        # Don't initialize _data here - let it be None until first successful update
+        # This ensures sensors show "unavailable" on startup
+        self._data = None
     
     @property
     def device_info(self):
@@ -68,11 +64,23 @@ class IBOKSensorBase(SensorEntity):
     
     async def async_update(self) -> None:
         """Update sensor data."""
+        if self._data is None:
+            # Initialize empty dict on first update
+            self._data = {
+                "balance": None,
+                "last_invoice": None,
+                "meter_state": None,
+                "readout_date": None,
+                "consumption": None,
+            }
+        
         try:
+            _LOGGER.debug("Starting update for %s", self.__class__.__name__)
             self._data = await self._fetch_data()
             self._last_update = datetime.now()
+            _LOGGER.debug("Successfully updated data: %s", self._data)
         except Exception as err:
-            _LOGGER.error("Error updating MPWIK iBOK data: %s", err)
+            _LOGGER.error("Error updating MPWIK iBOK data: %s", err, exc_info=True)
             # Set all data to None on error to trigger unavailable state
             self._data = {
                 "balance": None,
@@ -82,11 +90,19 @@ class IBOKSensorBase(SensorEntity):
                 "consumption": None,
             }
     
+    def _get_data(self, key: str, default=None):
+        """Safely get data value, handling None _data."""
+        if self._data is None:
+            return default
+        return self._data.get(key, default)
+    
     async def _fetch_data(self) -> dict:
         """Fetch data from MPWIK iBOK API."""
         username = self.entry.data.get("username")
         password = self.entry.data.get("password")
         server_url = self.entry.data.get("server_url")
+        
+        _LOGGER.debug("Fetching data from %s", server_url)
         
         async with aiohttp.ClientSession() as session:
             # Login
@@ -95,6 +111,7 @@ class IBOKSensorBase(SensorEntity):
                 "pass": password
             }
             
+            _LOGGER.debug("Attempting login...")
             async with session.post(
                 f"{server_url}/api/?method=login",
                 data=login_data,
@@ -102,21 +119,28 @@ class IBOKSensorBase(SensorEntity):
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as resp:
                 if resp.status != 200:
+                    _LOGGER.error("Login failed with status %d", resp.status)
                     raise Exception(f"Login failed with status {resp.status}")
                 
                 login_response = await resp.json()
+                _LOGGER.debug("Login response: %s", login_response)
                 
                 if login_response.get("status") != "ok":
+                    _LOGGER.error("Login error: %s", login_response.get('status'))
                     raise Exception(f"Login error: {login_response.get('status')}")
                 
                 sid = login_response.get("sid")
                 if not sid:
+                    _LOGGER.error("No session ID in login response")
                     raise Exception("No session ID in login response")
+                
+                _LOGGER.debug("Login successful, SID: %s", sid)
             
             # Fetch balance
             headers = {"Cookie": f"PHPSESSID={sid}"}
             
             balance = 0
+            _LOGGER.debug("Fetching balance...")
             async with session.get(
                 f"{server_url}/api/?method=balance",
                 headers=headers,
@@ -125,10 +149,15 @@ class IBOKSensorBase(SensorEntity):
             ) as resp:
                 if resp.status == 200:
                     balance_response = await resp.json()
+                    _LOGGER.debug("Balance response: %s", balance_response)
                     balance = balance_response.get("balance", 0)
+                    _LOGGER.debug("Balance: %s", balance)
+                else:
+                    _LOGGER.warning("Failed to fetch balance: status %d", resp.status)
             
             # Fetch invoices
             last_invoice = None
+            _LOGGER.debug("Fetching invoices...")
             async with session.get(
                 f"{server_url}/api/?method=invoice",
                 headers=headers,
@@ -137,6 +166,7 @@ class IBOKSensorBase(SensorEntity):
             ) as resp:
                 if resp.status == 200:
                     invoices = await resp.json()
+                    _LOGGER.debug("Invoices response: %s", invoices)
                     if invoices and len(invoices) > 0:
                         inv = invoices[0]
                         last_invoice = {
@@ -147,11 +177,15 @@ class IBOKSensorBase(SensorEntity):
                             "net_amount": float(inv.get("netto", 0)),
                             "vat": float(inv.get("vat", 0))
                         }
+                        _LOGGER.debug("Last invoice: %s", last_invoice)
+                else:
+                    _LOGGER.warning("Failed to fetch invoices: status %d", resp.status)
             
             # Fetch meter readout list
             meter_state = None
             readout_date = None
             consumption = None
+            _LOGGER.debug("Fetching meter readout list...")
             async with session.get(
                 f"{server_url}/api/?method=readoutlist",
                 headers=headers,
@@ -160,6 +194,7 @@ class IBOKSensorBase(SensorEntity):
             ) as resp:
                 if resp.status == 200:
                     meter_points = await resp.json()
+                    _LOGGER.debug("Meter points response: %s", meter_points)
                     if isinstance(meter_points, list) and len(meter_points) > 0:
                         meter_point = meter_points[0]
                         readouts = meter_point.get("readouts", [])
@@ -168,8 +203,12 @@ class IBOKSensorBase(SensorEntity):
                             meter_state = last_readout.get("readoutvalue", None)
                             readout_date = last_readout.get("readoutdate", None)
                             consumption = last_readout.get("consumption", None)
+                            _LOGGER.debug("Meter state: %s, Date: %s, Consumption: %s", meter_state, readout_date, consumption)
+                else:
+                    _LOGGER.warning("Failed to fetch meter readout: status %d", resp.status)
             
             # Logout
+            _LOGGER.debug("Logging out...")
             try:
                 async with session.get(
                     f"{server_url}/api/?method=logout",
@@ -177,10 +216,11 @@ class IBOKSensorBase(SensorEntity):
                     ssl=False,
                     timeout=aiohttp.ClientTimeout(total=10)
                 ) as resp:
-                    pass
-            except Exception:
-                pass  # Ignore logout errors
+                    _LOGGER.debug("Logout status: %d", resp.status)
+            except Exception as err:
+                _LOGGER.warning("Logout error: %s", err)
             
+            _LOGGER.debug("Returning data with balance: %s", balance)
             return {
                 "balance": float(balance) if balance else None,
                 "last_invoice": last_invoice,
@@ -206,10 +246,7 @@ class BalanceSensor(IBOKSensorBase):
     @property
     def native_value(self) -> StateType:
         """Return the native value of the sensor."""
-        balance = self._data.get("balance")
-        if balance is None:
-            return None
-        return balance
+        return self._get_data("balance")
 
 
 class InvoiceNumberSensor(IBOKSensorBase):

@@ -125,7 +125,7 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         error_status = login_response.get("status")
                         
                         # Handle session limit during validation
-                        if error_status == "sessionLimit":
+                        if login_response.get("sessionLimit"):
                             _LOGGER.warning("Session limit reached during validation, logging out all sessions...")
                             
                             try:

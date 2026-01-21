@@ -107,7 +107,7 @@ class MPWIKIBOKCoordinator(DataUpdateCoordinator):
                             error_msg = login_response.get("message", "Unknown error")
                             
                             # Handle session limit error
-                            if error_status == "sessionLimit":
+                            if login_response.get("sessionLimit"):
                                 _LOGGER.warning("Session limit reached, logging out all sessions...")
                                 
                                 try:

@@ -31,6 +31,10 @@ class MPWIKIBOKCoordinator(DataUpdateCoordinator):
         username = self.entry.data.get("username")
         password = self.entry.data.get("password")
         server_url = self.entry.data.get("server_url")
+        
+        # Ensure server_url has trailing slash
+        if server_url and not server_url.endswith("/"):
+            server_url = server_url + "/"
 
         _LOGGER.debug("Fetching data from %s", server_url)
 
@@ -57,10 +61,52 @@ class MPWIKIBOKCoordinator(DataUpdateCoordinator):
                     _LOGGER.debug("Login response: %s", login_response)
 
                     if login_response.get("status") != "ok":
-                        _LOGGER.error("Login error: %s", login_response.get("status"))
-                        raise UpdateFailed(
-                            f"Login error: {login_response.get('status')}"
-                        )
+                        error_status = login_response.get("status")
+                        
+                        # Handle session limit error
+                        if error_status == "sessionLimit":
+                            _LOGGER.warning("Session limit reached, logging out all sessions...")
+                            
+                            # Get any valid sid from previous attempt if available
+                            # Try logout all with empty/dummy sid first
+                            try:
+                                async with session.get(
+                                    f"{server_url}api/?method=logoutAll",
+                                    ssl=False,
+                                    timeout=aiohttp.ClientTimeout(total=30),
+                                ) as logout_resp:
+                                    logout_response = await logout_resp.json()
+                                    _LOGGER.debug("LogoutAll response: %s", logout_response)
+                            except Exception as e:
+                                _LOGGER.warning("LogoutAll error: %s", e)
+                            
+                            # Retry login after logout
+                            _LOGGER.debug("Retrying login after logoutAll...")
+                            try:
+                                async with session.post(
+                                    f"{server_url}api/?method=login",
+                                    data=login_data,
+                                    ssl=False,
+                                    timeout=aiohttp.ClientTimeout(total=30),
+                                ) as retry_resp:
+                                    if retry_resp.status != 200:
+                                        _LOGGER.error("Retry login failed with status %d", retry_resp.status)
+                                        raise UpdateFailed(f"Login failed after session logout")
+                                    
+                                    retry_response = await retry_resp.json()
+                                    _LOGGER.debug("Retry login response: %s", retry_response)
+                                    
+                                    if retry_response.get("status") != "ok":
+                                        _LOGGER.error("Retry login error: %s", retry_response.get("status"))
+                                        raise UpdateFailed(f"Login error after session logout: {retry_response.get('status')}")
+                                    
+                                    login_response = retry_response
+                            except aiohttp.ClientError as e:
+                                _LOGGER.error("Retry login connection error: %s", e)
+                                raise UpdateFailed(f"Login connection error after logout: {e}")
+                        else:
+                            _LOGGER.error("Login error: %s", error_status)
+                            raise UpdateFailed(f"Login error: {error_status}")
 
                     sid = login_response.get("sid")
                     if not sid:

@@ -69,7 +69,7 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         password = user_input.get("password")
         server_url = user_input.get("server_url").strip()
         
-        # Ensure server_url ends with / for proper urljoin
+        # Ensure server_url ends with / for proper URL construction
         if not server_url.endswith("/"):
             server_url = server_url + "/"
         
@@ -84,7 +84,7 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 "pass": password
             }
             
-            login_url = urljoin(server_url, "api/?method=login")
+            login_url = f"{server_url}api/?method=login"
             _LOGGER.debug("Login URL: %s", login_url)
             
             try:
@@ -117,8 +117,50 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     _LOGGER.debug("Login response: %s", login_response)
                     
                     if login_response.get("status") != "ok":
-                        _LOGGER.error("Invalid credentials or server error: %s", login_response.get("status"))
-                        raise Exception(f"Invalid credentials or server error")
+                        error_status = login_response.get("status")
+                        
+                        # Handle session limit during validation
+                        if error_status == "sessionLimit":
+                            _LOGGER.warning("Session limit reached during validation, logging out all sessions...")
+                            
+                            try:
+                                async with session.get(
+                                    f"{server_url}api/?method=logoutAll",
+                                    ssl=False,
+                                    timeout=aiohttp.ClientTimeout(total=10)
+                                ) as logout_resp:
+                                    logout_response = await logout_resp.json()
+                                    _LOGGER.debug("LogoutAll response: %s", logout_response)
+                            except Exception as e:
+                                _LOGGER.warning("LogoutAll error: %s", e)
+                            
+                            # Retry login
+                            _LOGGER.debug("Retrying login after logoutAll...")
+                            try:
+                                async with session.post(
+                                    login_url,
+                                    data=login_data,
+                                    ssl=False,
+                                    timeout=aiohttp.ClientTimeout(total=10)
+                                ) as retry_resp:
+                                    if retry_resp.status != 200:
+                                        _LOGGER.error("Retry login failed with status %d", retry_resp.status)
+                                        raise Exception("Login failed after session logout")
+                                    
+                                    retry_response = await retry_resp.json()
+                                    _LOGGER.debug("Retry login response: %s", retry_response)
+                                    
+                                    if retry_response.get("status") != "ok":
+                                        _LOGGER.error("Retry login error: %s", retry_response.get("status"))
+                                        raise Exception(f"Login error after session logout")
+                                    
+                                    login_response = retry_response
+                            except aiohttp.ClientError as e:
+                                _LOGGER.error("Retry login connection error: %s", e)
+                                raise Exception(f"Connection error after logout: {e}")
+                        else:
+                            _LOGGER.error("Invalid credentials or server error: %s", error_status)
+                            raise Exception(f"Invalid credentials or server error")
                     
                     sid = login_response.get("sid")
                     if not sid:
@@ -129,7 +171,7 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     
                     # Logout
                     headers = {"Cookie": f"PHPSESSID={sid}"}
-                    logout_url = urljoin(server_url, "api/?method=logout")
+                    logout_url = f"{server_url}api/?method=logout"
                     try:
                         async with session.get(
                             logout_url,

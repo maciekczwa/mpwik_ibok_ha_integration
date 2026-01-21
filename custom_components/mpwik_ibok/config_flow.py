@@ -43,7 +43,7 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 {
                     vol.Required("username"): str,
                     vol.Required("password"): str,
-                    vol.Optional("server_url", default="https://ibok.mpwik.bedzin.pl"): str,
+                    vol.Required("server_url"): str,
                 }
             ),
             errors=errors,
@@ -56,7 +56,7 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         
         username = user_input.get("username")
         password = user_input.get("password")
-        server_url = user_input.get("server_url", "https://ibok.mpwik.bedzin.pl")
+        server_url = user_input.get("server_url")
         
         async with aiohttp.ClientSession() as session:
             login_data = {

@@ -32,7 +32,7 @@
 4. Click it and fill in:
    - **Username**: Your iBOK email/username
    - **Password**: Your iBOK password
-   - **Server URL** (optional): Leave blank for default `https://ibok.mpwik.bedzin.pl`
+   - **Server URL**: Your MPWIK iBOK server URL (e.g., https://ibok.mpwik.bedzin.pl)
 5. Click **Submit**
 
 ### Verify Installation

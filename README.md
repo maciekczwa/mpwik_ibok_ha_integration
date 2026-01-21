@@ -40,7 +40,7 @@ A Home Assistant integration for monitoring your MPWIK iBOK utility account bala
 4. Enter your credentials:
    - **Username**: Your iBOK username (email)
    - **Password**: Your iBOK password
-   - **Server URL** (optional): Default is `https://ibok.mpwik.bedzin.pl`
+   - **Server URL**: Your MPWIK iBOK server URL (e.g., https://ibok.mpwik.bedzin.pl)
 
 ## Sensors
 

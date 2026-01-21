@@ -4,13 +4,14 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorStateClass
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfCurrency
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import IBOKDataUpdateCoordinator
 from .const import DOMAIN
+
+CURRENCY_PLN = "PLN"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,7 +40,7 @@ class BalanceSensor(CoordinatorEntity, SensorEntity):
     
     _attr_name = "Balance"
     _attr_unique_id = "mpwik_ibok_balance"
-    _attr_native_unit_of_measurement = UnitOfCurrency.PLN
+    _attr_native_unit_of_measurement = CURRENCY_PLN
     _attr_state_class = SensorStateClass.TOTAL
     _attr_icon = "mdi:currency-usd"
     
@@ -110,7 +111,7 @@ class InvoiceAmountOwedSensor(CoordinatorEntity, SensorEntity):
     
     _attr_name = "Last Invoice Amount Owed"
     _attr_unique_id = "mpwik_ibok_invoice_amount_owed"
-    _attr_native_unit_of_measurement = UnitOfCurrency.PLN
+    _attr_native_unit_of_measurement = CURRENCY_PLN
     _attr_state_class = SensorStateClass.TOTAL
     _attr_icon = "mdi:cash"
     
@@ -139,7 +140,7 @@ class InvoiceGrossAmountSensor(CoordinatorEntity, SensorEntity):
     
     _attr_name = "Last Invoice Gross Amount"
     _attr_unique_id = "mpwik_ibok_invoice_gross_amount"
-    _attr_native_unit_of_measurement = UnitOfCurrency.PLN
+    _attr_native_unit_of_measurement = CURRENCY_PLN
     _attr_state_class = SensorStateClass.TOTAL
     _attr_icon = "mdi:receipt"
     

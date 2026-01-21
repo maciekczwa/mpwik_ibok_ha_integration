@@ -63,7 +63,7 @@ class IBOKDataUpdateCoordinator(DataUpdateCoordinator):
         try:
             username = self.entry.data.get("username")
             password = self.entry.data.get("password")
-            server_url = self.entry.data.get("server_url", "https://ibok.mpwik.bedzin.pl")
+            server_url = self.entry.data.get("server_url")
             
             async with aiohttp.ClientSession() as session:
                 # Login

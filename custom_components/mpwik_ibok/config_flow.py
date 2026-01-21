@@ -98,7 +98,7 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         
         async with aiohttp.ClientSession() as session:
             login_data = {
-                "user": username.lower().strip(),
+                "user": username,
                 "pass": password
             }
             
@@ -128,12 +128,20 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         if login_response.get("sessionLimit"):
                             _LOGGER.warning("Session limit reached during validation, logging out all sessions...")
                             
+                            logout_url = f"{server_url}api/?method=logoutall"
+                            _LOGGER.debug("LogoutAll URL: %s", logout_url)
+                            logout_data = {
+                                "user": username,
+                                "pass": password,
+                            }
                             try:
-                                async with session.get(
-                                    f"{server_url}api/?method=logoutAll",
+                                async with session.post(
+                                    logout_url,
+                                    data=logout_data,
                                     ssl=False,
                                     timeout=aiohttp.ClientTimeout(total=10)
                                 ) as logout_resp:
+                                    _LOGGER.debug("LogoutAll response status: %d", logout_resp.status)
                                     try:
                                         logout_response = await parse_json_response(logout_resp)
                                         _LOGGER.debug("LogoutAll response: %s", logout_response)

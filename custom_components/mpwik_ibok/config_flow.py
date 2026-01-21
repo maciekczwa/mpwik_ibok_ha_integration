@@ -1,8 +1,10 @@
 """Config flow for MPWIK iBOK integration."""
 import logging
 from typing import Any, Dict, Optional
+import json
 
 import voluptuous as vol
+import aiohttp
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResult
@@ -10,6 +12,24 @@ from homeassistant.data_entry_flow import FlowResult
 _LOGGER = logging.getLogger(__name__)
 
 DOMAIN = "mpwik_ibok"
+
+
+async def parse_json_response(resp: aiohttp.ClientResponse) -> dict:
+    """Parse JSON response ignoring content-type header."""
+    try:
+        # First try the normal way
+        return await resp.json()
+    except (json.JSONDecodeError, ValueError, aiohttp.ContentTypeError):
+        # If that fails, try parsing text as JSON anyway
+        try:
+            text = await resp.text()
+            if text:
+                return json.loads(text)
+            raise ValueError("Empty response")
+        except json.JSONDecodeError as e:
+            _LOGGER.error("Failed to parse response as JSON: %s", e)
+            _LOGGER.debug("Response text: %s", text[:500] if text else "")
+            raise ValueError(f"Invalid JSON response: {e}")
 
 
 class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -98,12 +118,7 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         _LOGGER.error("Login failed with status %d", resp.status)
                         raise Exception(f"Login failed with status {resp.status}")
                     
-                    try:
-                        login_response = await resp.json()
-                    except Exception as e:
-                        _LOGGER.error("Failed to parse JSON response: %s", e)
-                        raise Exception("Server response is not valid JSON")
-                    
+                    login_response = await parse_json_response(resp)
                     _LOGGER.debug("Login response: %s", login_response)
                     
                     if login_response.get("status") != "ok":
@@ -119,10 +134,15 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                     ssl=False,
                                     timeout=aiohttp.ClientTimeout(total=10)
                                 ) as logout_resp:
-                                    logout_response = await logout_resp.json()
-                                    _LOGGER.debug("LogoutAll response: %s", logout_response)
+                                    try:
+                                        logout_response = await parse_json_response(logout_resp)
+                                        _LOGGER.debug("LogoutAll response: %s", logout_response)
+                                    except Exception as e:
+                                        _LOGGER.warning("Failed to parse logoutAll response: %s", e)
+                                        # Still continue with retry even if logoutAll response parsing fails
                             except Exception as e:
                                 _LOGGER.warning("LogoutAll error: %s", e)
+                                # Still continue with retry even if logoutAll fails
                             
                             # Retry login
                             _LOGGER.debug("Retrying login after logoutAll...")
@@ -137,7 +157,12 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                                         _LOGGER.error("Retry login failed with status %d", retry_resp.status)
                                         raise Exception("Login failed after session logout")
                                     
-                                    retry_response = await retry_resp.json()
+                                    try:
+                                        retry_response = await parse_json_response(retry_resp)
+                                    except Exception as e:
+                                        _LOGGER.error("Failed to parse retry response: %s", e)
+                                        raise Exception("Server returned invalid response on retry")
+                                    
                                     _LOGGER.debug("Retry login response: %s", retry_response)
                                     
                                     if retry_response.get("status") != "ok":
@@ -148,6 +173,9 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                             except aiohttp.ClientError as e:
                                 _LOGGER.error("Retry login connection error: %s", e)
                                 raise Exception(f"Connection error after logout: {e}")
+                            except Exception as e:
+                                _LOGGER.error("Retry login error: %s", e)
+                                raise
                         else:
                             _LOGGER.error("Invalid credentials or server error: %s", error_status)
                             raise Exception(f"Invalid credentials or server error")

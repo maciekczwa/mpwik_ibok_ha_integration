@@ -78,14 +78,15 @@ class MPWIKIBOKCoordinator(DataUpdateCoordinator):
 
         _LOGGER.debug("Fetching data from %s", server_url)
 
-        async with aiohttp.ClientSession() as session:
-            # Login
-            login_data = {
-                "user": username.lower().strip(),
-                "pass": password,
-            }
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Login
+                login_data = {
+                    "user": username.lower().strip(),
+                    "pass": password,
+                }
 
-            _LOGGER.debug("Attempting login...")
+                _LOGGER.debug("Attempting login...")
             try:
                 async with session.post(
                     f"{server_url}api/?method=login",

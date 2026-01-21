@@ -32,9 +32,7 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 error_msg = str(err)
                 
                 # Map errors to user-friendly messages
-                if "HTML instead of JSON" in error_msg:
-                    errors["base"] = "invalid_server_url"
-                elif "Invalid credentials" in error_msg:
+                if "Invalid credentials" in error_msg or "Invalid auth" in error_msg:
                     errors["base"] = "invalid_auth"
                 elif "Connection error" in error_msg:
                     errors["base"] = "cannot_connect"
@@ -95,18 +93,10 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     timeout=aiohttp.ClientTimeout(total=10)
                 ) as resp:
                     _LOGGER.debug("Login response status: %d", resp.status)
-                    _LOGGER.debug("Login response content-type: %s", resp.content_type)
                     
                     if resp.status != 200:
                         _LOGGER.error("Login failed with status %d", resp.status)
                         raise Exception(f"Login failed with status {resp.status}")
-                    
-                    # Check content type before trying to parse JSON
-                    if "application/json" not in resp.content_type:
-                        _LOGGER.error("Unexpected response content-type: %s", resp.content_type)
-                        text = await resp.text()
-                        _LOGGER.error("Response body: %s", text[:500])
-                        raise Exception(f"Server returned HTML instead of JSON. Check server URL and credentials.")
                     
                     try:
                         login_response = await resp.json()

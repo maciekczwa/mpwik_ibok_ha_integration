@@ -12,8 +12,7 @@
       }
     },
     "error": {
-      "invalid_auth": "Invalid username, password, or wrong server URL",
-      "invalid_server_url": "Invalid server URL. Make sure it's the correct MPWIK iBOK server address",
+      "invalid_auth": "Invalid username, password, or server error",
       "cannot_connect": "Cannot connect to server. Check internet connection and server URL"
     }
   }

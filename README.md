@@ -58,34 +58,75 @@ The integration updates automatically every 24 hours. You can manually trigger a
 
 ## Example Automations
 
-### Notify when balance is low
+### Notify when you owe money (balance > 0)
 
 ```yaml
-- alias: "Low MPWIK Balance Notification"
+- alias: "MPWIK Debt Notification"
   trigger:
     - platform: numeric_state
       entity_id: sensor.mpwik_ibok_balance
-      below: 100
+      above: 0
   action:
     - service: notify.notify
       data:
-        message: "Your MPWIK balance is low: {{ states('sensor.mpwik_ibok_balance') }} PLN"
+        message: "⚠️ MPWIK: You owe {{ states('sensor.mpwik_ibok_balance') }} PLN"
 ```
+
+**Note:** In MPWIK system, a positive balance means you have a DEBT and need to pay. Zero or negative balance means you've paid everything.
+
+## Example Automations
+
+### Notify when you owe money (balance > 0)
+
+```yaml
+- alias: "MPWIK Debt Alert"
+  trigger:
+    - platform: numeric_state
+      entity_id: sensor.mpwik_ibok_balance
+      above: 0
+  action:
+    - service: notify.notify
+      data:
+        message: "⚠️ MPWIK: You have a debt of {{ states('sensor.mpwik_ibok_balance') }} PLN to pay!"
+```
+
+**Important:** In the MPWIK system:
+- **Positive balance (> 0)** = You OWE money and must PAY
+- **Zero or negative balance (≤ 0)** = You've paid everything, account is settled
 
 ### Notify when invoice is due soon
 
 ```yaml
-- alias: "Invoice Due Notification"
+- alias: "Invoice Due Soon Notification"
   trigger:
     - platform: template
       value_template: "{{ states('sensor.mpwik_ibok_last_invoice_due_date') != 'N/A' }}"
   condition:
     - condition: template
-      value_template: "{{ (states('sensor.mpwik_ibok_last_invoice_amount_owed') | float(0)) > 0 }}"
+      value_template: "{{ (states('sensor.mpwik_ibok_balance') | float(0)) > 0 }}"
   action:
     - service: notify.notify
       data:
-        message: "MPWIK invoice due on {{ states('sensor.mpwik_ibok_last_invoice_due_date') }}"
+        message: "📋 MPWIK invoice due on {{ states('sensor.mpwik_ibok_last_invoice_due_date') }}, you owe {{ states('sensor.mpwik_ibok_last_invoice_amount_owed') }} PLN"
+```
+
+### Alert when meter reading is due (no reading for 30+ days)
+
+```yaml
+- alias: "Meter Reading Overdue Alert"
+  trigger:
+    - platform: template
+      value_template: >
+        {% set last_date = states('sensor.mpwik_ibok_last_meter_readout_date') %}
+        {% if last_date != 'N/A' %}
+          {{ (now() - strptime(last_date, '%Y-%m-%d')).days > 30 }}
+        {% else %}
+          false
+        {% endif %}
+  action:
+    - service: notify.notify
+      data:
+        message: "📊 MPWIK: Last meter reading was on {{ states('sensor.mpwik_ibok_last_meter_readout_date') }}. Please submit a new reading!"
 ```
 
 ## Support

@@ -3,6 +3,7 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
+from .coordinator import MPWIKIBOKCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -12,7 +13,15 @@ DOMAIN = "mpwik_ibok"
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up MPWIK iBOK from a config entry."""
     hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = entry.data
+    
+    # Create coordinator for this entry
+    coordinator = MPWIKIBOKCoordinator(hass, entry)
+    
+    # Perform first refresh
+    await coordinator.async_config_entry_first_refresh()
+    
+    # Store coordinator in hass.data
+    hass.data[DOMAIN][entry.entry_id] = coordinator
     
     await hass.config_entries.async_forward_entry_setups(entry, [Platform.SENSOR])
     return True

@@ -2,18 +2,19 @@
   "config": {
     "step": {
       "user": {
-        "title": "MPWIK iBOK Configuration",
-        "description": "Enter your MPWIK iBOK credentials",
+        "title": "MPWIK iBOK Account Configuration",
+        "description": "Enter your MPWIK iBOK account credentials",
         "data": {
-          "username": "Username (Email)",
+          "username": "Username",
           "password": "Password",
-          "server_url": "Server URL (optional)"
+          "server_url": "Server URL (e.g. https://ibok.mpwik.bedzin.pl)"
         }
       }
     },
     "error": {
-      "invalid_auth": "Invalid authentication credentials",
-      "cannot_connect": "Cannot connect to server"
+      "invalid_auth": "Invalid username, password, or wrong server URL",
+      "invalid_server_url": "Invalid server URL. Make sure it's the correct MPWIK iBOK server address",
+      "cannot_connect": "Cannot connect to server. Check internet connection and server URL"
     }
   }
 }

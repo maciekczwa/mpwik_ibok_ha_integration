@@ -1,0 +1,13 @@
+{
+  "domain": "mpwik_ibok",
+  "name": "MPWIK iBOK",
+  "codeowners": ["@maciekczwa"],
+  "config_flow": true,
+  "documentation": "https://github.com/maciekczwa/mpwik_ibok_ha_integration",
+  "requirements": [
+    "requests>=2.28.0"
+  ],
+  "version": "1.0.0",
+  "issue_tracker": "https://github.com/maciekczwa/mpwik_ibok_ha_integration/issues",
+  "homeassistant": "2024.1.0"
+}

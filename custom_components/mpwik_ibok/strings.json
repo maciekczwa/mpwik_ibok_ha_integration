@@ -1,0 +1,19 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "MPWIK iBOK Configuration",
+        "description": "Enter your MPWIK iBOK credentials",
+        "data": {
+          "username": "Username (Email)",
+          "password": "Password",
+          "server_url": "Server URL (optional)"
+        }
+      }
+    },
+    "error": {
+      "invalid_auth": "Invalid authentication credentials",
+      "cannot_connect": "Cannot connect to server"
+    }
+  }
+}

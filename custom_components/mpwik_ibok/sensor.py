@@ -182,6 +182,7 @@ class MeterStateSensor(IBOKSensorBase):
     _attr_name = "Meter Reading"
     _attr_native_unit_of_measurement = UNIT_CUBIC_METERS
     _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_device_class = "water"
     _attr_icon = "mdi:water-meter"
 
     def __init__(self, coordinator: MPWIKIBOKCoordinator, entry: ConfigEntry):

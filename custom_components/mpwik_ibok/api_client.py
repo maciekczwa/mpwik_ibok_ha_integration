@@ -410,6 +410,11 @@ class MPWIKIBOKApiClient:
     async def get_all_data(self) -> Dict[str, Any]:
         """Fetch all data (balance, invoices, meter readouts) in one session.
         
+        This is a convenience method that creates its own session, logs in,
+        fetches all data, and logs out. It's designed for one-off data retrieval
+        where you want all data at once. For repeated calls, consider using
+        the context manager (async with) or manual login/logout to reuse sessions.
+        
         Returns:
             Dictionary with all data
             

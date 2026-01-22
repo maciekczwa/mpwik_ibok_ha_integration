@@ -1,5 +1,6 @@
 """Data coordinator for MPWIK iBOK integration."""
 import logging
+import time
 from datetime import timedelta
 from typing import Optional
 
@@ -33,8 +34,6 @@ class MPWIKIBOKCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self) -> dict:
         """Fetch data from MPWIK iBOK API."""
-        import time
-        
         # Check if we should skip due to backoff
         if self.last_update_error_time is not None and self.error_count > 0:
             backoff_index = min(self.error_count - 1, len(RETRY_BACKOFF_TIMES) - 1)
@@ -77,7 +76,6 @@ class MPWIKIBOKCoordinator(DataUpdateCoordinator):
         
         except (MPWIKIBOKAuthError, MPWIKIBOKConnectionError, MPWIKIBOKApiError) as e:
             # Track error for backoff
-            import time
             self.last_update_error_time = time.time()
             self.error_count += 1
             backoff_index = min(self.error_count - 1, len(RETRY_BACKOFF_TIMES) - 1)
@@ -91,7 +89,6 @@ class MPWIKIBOKCoordinator(DataUpdateCoordinator):
             raise UpdateFailed(str(e))
         except Exception as e:
             # Track error for backoff
-            import time
             self.last_update_error_time = time.time()
             self.error_count += 1
             backoff_index = min(self.error_count - 1, len(RETRY_BACKOFF_TIMES) - 1)

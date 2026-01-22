@@ -77,12 +77,14 @@ class MPWIKIBOKConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 server_url=server_url,
                 username=username,
                 password=password,
-                timeout=10,
+                timeout=30,
             )
             
-            # Test login and logout
-            async with api_client:
-                _LOGGER.debug("Login successful during validation")
+            # Test login and logout explicitly
+            await api_client.login()
+            _LOGGER.debug("Login successful during validation")
+            await api_client.logout()
+            _LOGGER.debug("Logout successful during validation")
                 
         except MPWIKIBOKAuthError as e:
             _LOGGER.error("Authentication error: %s", e)

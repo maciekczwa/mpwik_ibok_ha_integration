@@ -14,6 +14,25 @@ A Home Assistant integration for monitoring your MPWIK iBOK utility account bala
 - 🔄 Automatic updates every 24 hours
 - 🔌 Customizable server URL
 - 📦 HACS compatible
+- 🔧 **Standalone API client** - Test API without installing Home Assistant
+
+## Standalone API Usage
+
+The integration includes a standalone API client that can be used independently of Home Assistant. This is useful for:
+- Testing your MPWIK iBOK credentials
+- Integrating with other systems
+- Debugging connection issues
+- Building custom applications
+
+See the [examples](examples/) directory for detailed usage instructions and sample scripts.
+
+**Quick test:**
+```bash
+pip install aiohttp
+python examples/test_api.py https://ibok.mpwik.bedzin.pl your_username your_password
+```
+
+For more details, see [examples/README.md](examples/README.md).
 
 ## Installation
 
